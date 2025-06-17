@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>KeyBag Demo</title>
+</head>
+<body>
+  <h2>🔐 KeyBag Password Demo</h2>
+  <input type="password" id="passwordInput" placeholder="Enter your password" />
+  <button onclick="savePassword()">Save</button>
+  <button onclick="loadPassword()">Load</button>
+  <p><strong>Decrypted Password:</strong> <span id="decryptedPassword">None</span></p>
+
+  <script>
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // 12 bytes IV
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    // Just a demo key (in real use, derive from a master password)
+    const keyMaterial = "my-secret-demo-key"; 
+
+    async function getKey() {
+      const rawKey = encoder.encode(keyMaterial);
+      return crypto.subtle.importKey(
+        "raw",
+        rawKey,
+        "AES-GCM",
+        false,
+        ["encrypt", "decrypt"]
+      );
+    }
+
+    async function savePassword() {
+      const password = document.getElementById("passwordInput").value;
+      const key = await getKey();
+
+      const encrypted = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        encoder.encode(password)
+      );
+
+      // Store encrypted string & IV in localStorage
+      localStorage.setItem("encryptedPassword", btoa(String.fromCharCode(...new Uint8Array(encrypted))));
+      localStorage.setItem("encryptionIV", btoa(String.fromCharCode(...iv)));
+
+      alert("Password saved encrypted in localStorage.");
+    }
+
+    async function loadPassword() {
+      const encryptedBase64 = localStorage.getItem("encryptedPassword");
+      const ivBase64 = localStorage.getItem("encryptionIV");
+
+      if (!encryptedBase64 || !ivBase64) {
+        alert("No password found!");
+        return;
+      }
+
+      const encrypted = Uint8Array.from(atob(encryptedBase64), c => c.charCodeAt(0));
+      const iv = Uint8Array.from(atob(ivBase64), c => c.charCodeAt(0));
+
+      const key = await getKey();
+
+      try {
+        const decrypted = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: iv },
+          key,
+          encrypted
+        );
+
+        document.getElementById("decryptedPassword").textContent = decoder.decode(decrypted);
+      } catch (err) {
+        alert("Decryption failed! Wrong key?");
+      }
+    }
+  </script>
+</body>
+</html>
